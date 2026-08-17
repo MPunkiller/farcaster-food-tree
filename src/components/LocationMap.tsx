@@ -33,7 +33,9 @@ export function LocationMap({ nodes, selectedHash, onSelect }: Props) {
   const { data, isPending } = useQuery({
     queryKey: ["locations", DEFAULT_ROOT_HASH],
     queryFn: async () => {
-      const res = await fetch(`/api/public/locations?root=${encodeURIComponent(DEFAULT_ROOT_HASH)}`);
+      const res = await fetch(
+        `/api/public/locations?root=${encodeURIComponent(DEFAULT_ROOT_HASH)}`,
+      );
       if (!res.ok) throw new Error("locations unavailable");
       return (await res.json()) as { pins: Pin[] };
     },
@@ -103,7 +105,9 @@ export function LocationMap({ nodes, selectedHash, onSelect }: Props) {
             style={{ left: `${left}%`, top: `${top}%` }}
           >
             <span className="block h-6 w-6 overflow-hidden rounded-full bg-card">
-              {node.pfpUrl && <img src={node.pfpUrl} alt="" className="h-full w-full object-cover" />}
+              {node.pfpUrl && (
+                <img src={node.pfpUrl} alt="" className="h-full w-full object-cover" />
+              )}
             </span>
           </button>
         ))}

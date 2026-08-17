@@ -40,15 +40,9 @@ export const Route = createFileRoute("/api/public/guess")({
         const { eligibleHashes } = await import("@/lib/guess.server");
         const { NeynarError } = await import("@/lib/neynar.server");
         try {
-          return Response.json(
-            { eligible: await eligibleHashes(rootHash) },
-            { headers: NO_STORE },
-          );
+          return Response.json({ eligible: await eligibleHashes(rootHash) }, { headers: NO_STORE });
         } catch (error) {
-          return upstreamError(
-            error,
-            (e) => e instanceof NeynarError && e.code === "missing_key",
-          );
+          return upstreamError(error, (e) => e instanceof NeynarError && e.code === "missing_key");
         }
       },
 
@@ -58,7 +52,10 @@ export const Route = createFileRoute("/api/public/guess")({
         try {
           body = await request.json();
         } catch {
-          return Response.json({ error: "Invalid request body." }, { status: 400, headers: NO_STORE });
+          return Response.json(
+            { error: "Invalid request body." },
+            { status: 400, headers: NO_STORE },
+          );
         }
 
         const payload = body as {
@@ -100,10 +97,7 @@ export const Route = createFileRoute("/api/public/guess")({
           }
           return Response.json(result, { headers: NO_STORE });
         } catch (error) {
-          return upstreamError(
-            error,
-            (e) => e instanceof NeynarError && e.code === "missing_key",
-          );
+          return upstreamError(error, (e) => e instanceof NeynarError && e.code === "missing_key");
         }
       },
     },
