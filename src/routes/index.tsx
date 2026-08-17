@@ -93,6 +93,14 @@ function Index() {
               >
                 Map
               </Button>
+              <Button
+                size="sm"
+                variant={view === "game" ? "default" : "ghost"}
+                onClick={() => setView("game")}
+                aria-pressed={view === "game"}
+              >
+                Guess
+              </Button>
             </div>
 
             <div className="h-full w-full md:pr-[360px]">
@@ -103,12 +111,16 @@ function Index() {
                   selectedHash={selectedHash}
                   onSelect={setSelectedHash}
                 />
-              ) : (
+              ) : view === "map" ? (
                 <LocationMap
                   nodes={layout.nodes}
                   selectedHash={selectedHash}
                   onSelect={setSelectedHash}
                 />
+              ) : (
+                <div className="h-full w-full pt-14">
+                  <LocationGuessGame nodes={layout.nodes} />
+                </div>
               )}
             </div>
 
