@@ -169,7 +169,7 @@ async function fetchQuotes(hash: string, key: string): Promise<RawCast[]> {
  * Recursively (breadth-first) discovers the complete quote-cast tree from a
  * root cast hash. Deduplicates by cast hash and guards against cycles.
  */
-export async function buildQuoteTree(rootHash: string): Promise<QuoteTreeResponse> {
+export async function buildQuoteTree(rootHash: string): Promise<ServerQuoteTree> {
   const key = apiKey();
   const startedAt = Date.now();
 
@@ -179,12 +179,12 @@ export async function buildQuoteTree(rootHash: string): Promise<QuoteTreeRespons
   const rootNode = toNode(root, 0, null);
   if (!rootNode) throw new NeynarError("Root cast could not be read.", "upstream");
 
-  const nodes = new Map<string, CastNode>([[rootNode.hash, rootNode]]);
+  const nodes = new Map<string, ServerCastNode>([[rootNode.hash, rootNode]]);
   const edges: CastEdge[] = [];
   const visited = new Set<string>([rootNode.hash]);
   let truncated = false;
 
-  let frontier: CastNode[] = [rootNode];
+  let frontier: ServerCastNode[] = [rootNode];
   let depth = 0;
 
   while (frontier.length > 0 && depth < LIMITS.maxDepth) {
@@ -192,7 +192,7 @@ export async function buildQuoteTree(rootHash: string): Promise<QuoteTreeRespons
       truncated = true;
       break;
     }
-    const next: CastNode[] = [];
+    const next: ServerCastNode[] = [];
 
     for (let i = 0; i < frontier.length; i += LIMITS.concurrency) {
       if (Date.now() - startedAt > LIMITS.timeBudgetMs) {
