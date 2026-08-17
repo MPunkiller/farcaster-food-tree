@@ -118,6 +118,7 @@ export function QuoteTree({ layout, rootHash, selectedHash, onSelect }: Props) {
     if (pts.length >= 2) {
       const a = pts[0]!;
       const b = pts[1]!;
+      const dist = Math.hypot(a.x - b.x, a.y - b.y);
 
       const rect = containerRef.current?.getBoundingClientRect();
       const cx = (a.x + b.x) / 2 - (rect?.left ?? 0);
