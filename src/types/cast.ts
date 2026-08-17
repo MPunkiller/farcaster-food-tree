@@ -12,12 +12,29 @@ export interface CastNode {
   castUrl: string;
   depth: number;
   parentHash: string | null;
-  /** Self-declared profile location, if the profile exposes one */
+  /**
+   * Self-declared profile location, if the profile exposes one.
+   * Coordinates are deliberately NOT part of the client payload — the
+   * Location Guess game resolves them server-side after a guess is submitted.
+   */
   location: {
     description: string | null;
-    latitude: number | null;
-    longitude: number | null;
+    hasCoordinates: boolean;
   } | null;
+}
+
+/** Result of a server-scored Location Guess round. */
+export interface GuessResult {
+  hash: string;
+  username: string;
+  distanceKm: number;
+  points: number;
+  totalScore: number;
+  location: {
+    description: string | null;
+    latitude: number;
+    longitude: number;
+  };
 }
 
 export interface CastEdge {
