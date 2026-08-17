@@ -144,7 +144,8 @@ function toNode(cast: RawCast, depth: number, parentHash: string | null): Server
     castUrl: `https://farcaster.xyz/${username}/${hash.slice(0, 10)}`,
     depth,
     parentHash,
-    location: locationOf(cast),
+    location,
+    coords,
   };
 }
 
