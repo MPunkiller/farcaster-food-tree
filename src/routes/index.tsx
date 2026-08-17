@@ -6,6 +6,7 @@ import { CastDetails } from "@/components/CastDetails";
 import { ErrorState } from "@/components/ErrorState";
 import { Header } from "@/components/Header";
 import { LoadingState } from "@/components/LoadingState";
+import { LocationGuessGame } from "@/components/LocationGuessGame";
 import { LocationMap } from "@/components/LocationMap";
 import { QuoteTree } from "@/components/QuoteTree";
 import { Button } from "@/components/ui/button";
@@ -35,12 +36,12 @@ export const Route = createFileRoute("/")({
 function Index() {
   const [selectedHash, setSelectedHash] = useState<string | null>(null);
   const [aboutOpen, setAboutOpen] = useState(false);
-  const [view, setView] = useState<"tree" | "map">("tree");
+  const [view, setView] = useState<"tree" | "map" | "game">("tree");
   const { data, layout, isPending, isFetching, error, refetch, progressMessage } =
     useQuoteTree(DEFAULT_ROOT_HASH);
 
-  const selected = selectedHash ? layout?.byHash.get(selectedHash) ?? null : null;
-  const parent = selected?.parentHash ? layout?.byHash.get(selected.parentHash) ?? null : null;
+  const selected = selectedHash ? (layout?.byHash.get(selectedHash) ?? null) : null;
+  const parent = selected?.parentHash ? (layout?.byHash.get(selected.parentHash) ?? null) : null;
 
   const statsLine = useMemo(() => {
     if (!data) return "Live Farcaster data";
@@ -92,6 +93,14 @@ function Index() {
               >
                 Map
               </Button>
+              <Button
+                size="sm"
+                variant={view === "game" ? "default" : "ghost"}
+                onClick={() => setView("game")}
+                aria-pressed={view === "game"}
+              >
+                Guess
+              </Button>
             </div>
 
             <div className="h-full w-full md:pr-[360px]">
@@ -102,12 +111,16 @@ function Index() {
                   selectedHash={selectedHash}
                   onSelect={setSelectedHash}
                 />
-              ) : (
+              ) : view === "map" ? (
                 <LocationMap
                   nodes={layout.nodes}
                   selectedHash={selectedHash}
                   onSelect={setSelectedHash}
                 />
+              ) : (
+                <div className="h-full w-full pt-14">
+                  <LocationGuessGame nodes={layout.nodes} />
+                </div>
               )}
             </div>
 
