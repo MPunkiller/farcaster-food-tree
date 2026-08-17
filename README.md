@@ -27,3 +27,16 @@ npm run dev
 - TypeScript
 - React
 - Tailwind CSS
+
+## Food Quote-Cast Tree — configuration
+
+The app reconstructs the quote-cast tree from live Farcaster data through the
+Neynar API. The key is read server-side only, inside the request handler:
+
+- Env var: `NEYNAR_API_KEY` (see `.env.example`)
+- Set it in Vercel: Project Settings → Environment Variables
+- Server endpoint: `GET /api/public/tree?root=0x…` (`src/routes/api/public/tree.ts`)
+- Discovery + graph building: `src/lib/neynar.server.ts`, layout: `src/lib/tree-layout.ts`
+- Root cast + optional GitHub link: `src/lib/constants.ts`
+
+No key ever reaches the browser; the frontend only calls `/api/public/tree`.
