@@ -63,7 +63,7 @@ export function useQuoteTree(rootHash: string) {
   return {
     ...query,
     layout,
-    progressMessage: PROGRESS_STEPS[step] ?? PROGRESS_STEPS[0],
+    progressMessage: PROGRESS_STEPS[step] ?? "Discovering quote casts…",
     error: query.error as TreeQueryError | null,
   };
 }
