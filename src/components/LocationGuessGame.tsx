@@ -1,23 +1,16 @@
-import { useCallback, useMemo, useRef, useState } from "react";
+import { ClientOnly } from "@tanstack/react-router";
+import { Suspense, lazy, useCallback, useMemo, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import type { PositionedNode } from "@/lib/tree-layout";
+
+const GuessMap = lazy(() => import("@/components/GuessMap"));
 
 interface Props {
   nodes: PositionedNode[];
 }
 
 const ROUNDS = 5;
-
-/** Equirectangular projection into a 0-100 percentage box. */
-function project(lat: number, lon: number) {
-  return { left: ((lon + 180) / 360) * 100, top: ((90 - lat) / 180) * 100 };
-}
-
-/** Inverse of `project`: percentages back into lat/lon. */
-function unproject(leftPct: number, topPct: number) {
-  return { lat: 90 - (topPct / 100) * 180, lon: (leftPct / 100) * 360 - 180 };
-}
 
 /** Great-circle distance in kilometres (haversine). */
 function haversineKm(aLat: number, aLon: number, bLat: number, bLon: number) {
@@ -31,9 +24,9 @@ function haversineKm(aLat: number, aLon: number, bLat: number, bLon: number) {
   return 2 * R * Math.asin(Math.min(1, Math.sqrt(h)));
 }
 
-/** 5000 points for a perfect guess, decaying with distance. */
+/** Distance-based score: 1,000 points for a perfect guess, 0 at the antipode. */
 function scoreFor(km: number) {
-  return Math.max(0, Math.round(5000 * Math.exp(-km / 2000)));
+  return Math.max(0, Math.round(1000 * (1 - km / 20000)));
 }
 
 function shuffle<T>(items: T[]) {
@@ -48,51 +41,52 @@ function shuffle<T>(items: T[]) {
 const DISCLAIMER =
   "Location is self-declared profile data. It is not necessarily the poster's birthplace, hometown, or where the food photo was taken.";
 
+interface RoundResult {
+  username: string;
+  km: number;
+  points: number;
+}
+
+const MapSkeleton = () => (
+  <div className="h-full w-full animate-pulse rounded-xl border border-border bg-muted/40" />
+);
+
 export function LocationGuessGame({ nodes }: Props) {
+  // Only posters with usable self-declared coordinates can ever be scored.
   const eligible = useMemo(
     () =>
       nodes.filter(
         (n) =>
-          typeof n.location?.latitude === "number" && typeof n.location?.longitude === "number",
+          typeof n.location?.latitude === "number" &&
+          typeof n.location?.longitude === "number" &&
+          Number.isFinite(n.location.latitude) &&
+          Number.isFinite(n.location.longitude),
       ),
     [nodes],
   );
 
   const [deck, setDeck] = useState(() => shuffle(eligible).slice(0, ROUNDS));
   const [round, setRound] = useState(0);
-  const [guess, setGuess] = useState<{ left: number; top: number } | null>(null);
+  const [guess, setGuess] = useState<{ lat: number; lon: number } | null>(null);
   const [revealed, setRevealed] = useState(false);
-  const [total, setTotal] = useState(0);
-  const [lastScore, setLastScore] = useState(0);
-  const [lastKm, setLastKm] = useState(0);
+  const [results, setResults] = useState<RoundResult[]>([]);
   const [finished, setFinished] = useState(false);
-  const mapRef = useRef<HTMLDivElement>(null);
 
   const current = deck[round];
+  const total = results.reduce((sum, r) => sum + r.points, 0);
+  const last = revealed ? results[results.length - 1] : undefined;
 
-  const onMapClick = useCallback(
-    (event: React.MouseEvent<HTMLDivElement>) => {
-      if (revealed || !current) return;
-      const rect = mapRef.current?.getBoundingClientRect();
-      if (!rect) return;
-      const left = ((event.clientX - rect.left) / rect.width) * 100;
-      const top = ((event.clientY - rect.top) / rect.height) * 100;
-      const picked = unproject(left, top);
-      const km = haversineKm(
-        picked.lat,
-        picked.lon,
-        current.location!.latitude!,
-        current.location!.longitude!,
-      );
-      const points = scoreFor(km);
-      setGuess({ left, top });
-      setLastKm(km);
-      setLastScore(points);
-      setTotal((t) => t + points);
-      setRevealed(true);
-    },
-    [current, revealed],
-  );
+  const submit = useCallback(() => {
+    if (!guess || !current || revealed) return;
+    const km = haversineKm(
+      guess.lat,
+      guess.lon,
+      current.location!.latitude!,
+      current.location!.longitude!,
+    );
+    setResults((r) => [...r, { username: current.username, km, points: scoreFor(km) }]);
+    setRevealed(true);
+  }, [current, guess, revealed]);
 
   const next = useCallback(() => {
     setGuess(null);
@@ -109,9 +103,7 @@ export function LocationGuessGame({ nodes }: Props) {
     setRound(0);
     setGuess(null);
     setRevealed(false);
-    setTotal(0);
-    setLastScore(0);
-    setLastKm(0);
+    setResults([]);
     setFinished(false);
   }, [eligible]);
 
@@ -130,14 +122,37 @@ export function LocationGuessGame({ nodes }: Props) {
   }
 
   if (finished) {
+    const avg = results.reduce((s, r) => s + r.km, 0) / (results.length || 1);
+    const best = results.reduce((b, r) => (r.km < b.km ? r : b), results[0]!);
+    const worst = results.reduce((w, r) => (r.km > w.km ? r : w), results[0]!);
     return (
-      <div className="flex h-full items-center justify-center px-6 text-center">
-        <div className="max-w-sm space-y-4">
-          <h2 className="text-lg font-semibold">Final score</h2>
-          <p className="text-4xl font-bold text-primary">{total.toLocaleString()}</p>
+      <div className="flex h-full items-center justify-center overflow-y-auto p-4">
+        <div className="w-full max-w-sm space-y-4 rounded-2xl border border-border bg-card/70 p-6 text-center">
+          <p className="text-xs uppercase tracking-widest text-muted-foreground">Final score</p>
+          <p className="text-5xl font-bold text-primary">{total.toLocaleString()}</p>
           <p className="text-sm text-muted-foreground">
-            across {deck.length} round{deck.length === 1 ? "" : "s"}
+            {results.length}/{deck.length} rounds completed
           </p>
+          <dl className="space-y-2 rounded-xl border border-border bg-background/40 p-3 text-left text-sm">
+            <div className="flex justify-between gap-3">
+              <dt className="text-muted-foreground">Average distance</dt>
+              <dd className="font-semibold">{Math.round(avg).toLocaleString()} km</dd>
+            </div>
+            <div className="flex justify-between gap-3">
+              <dt className="text-muted-foreground">Best round</dt>
+              <dd className="truncate font-semibold">
+                @{best.username} · {Math.round(best.km).toLocaleString()} km · +
+                {best.points.toLocaleString()}
+              </dd>
+            </div>
+            <div className="flex justify-between gap-3">
+              <dt className="text-muted-foreground">Worst round</dt>
+              <dd className="truncate font-semibold">
+                @{worst.username} · {Math.round(worst.km).toLocaleString()} km · +
+                {worst.points.toLocaleString()}
+              </dd>
+            </div>
+          </dl>
           <Button onClick={restart}>Play again</Button>
           <p className="text-xs text-muted-foreground">{DISCLAIMER}</p>
         </div>
@@ -147,111 +162,86 @@ export function LocationGuessGame({ nodes }: Props) {
 
   if (!current) return null;
 
-  const actual = project(current.location!.latitude!, current.location!.longitude!);
-
   return (
     <div className="flex h-full flex-col gap-3 overflow-y-auto p-4">
       <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
         <span>
           Round {round + 1} of {deck.length}
         </span>
-        <span>Score {total.toLocaleString()}</span>
+        <span>Total score {total.toLocaleString()}</span>
       </div>
 
-      <div className="flex items-center gap-3 rounded-xl border border-border bg-card/60 p-3">
+      <div className="space-y-3 rounded-xl border border-border bg-card/60 p-3">
+        <h2 className="text-center text-sm font-bold uppercase tracking-wider">
+          Where do you think they&apos;re from?
+        </h2>
         {current.foodImageUrl ? (
           <img
             src={current.foodImageUrl}
             alt={`Food posted by @${current.username}`}
-            className="h-16 w-16 shrink-0 rounded-lg object-cover"
+            className="h-48 w-full rounded-lg object-cover sm:h-56"
             loading="lazy"
           />
-        ) : null}
-        <span className="h-10 w-10 shrink-0 overflow-hidden rounded-full bg-muted">
-          {current.pfpUrl ? (
-            <img src={current.pfpUrl} alt="" className="h-full w-full object-cover" />
-          ) : null}
-        </span>
-        <div className="min-w-0">
+        ) : (
+          <div className="flex h-48 w-full items-center justify-center rounded-lg bg-muted/40 text-xs text-muted-foreground sm:h-56">
+            No food photo in this cast
+          </div>
+        )}
+        <div className="flex min-w-0 items-center justify-center gap-2">
+          <span className="h-8 w-8 shrink-0 overflow-hidden rounded-full bg-muted">
+            {current.pfpUrl ? (
+              <img src={current.pfpUrl} alt="" className="h-full w-full object-cover" />
+            ) : null}
+          </span>
           <p className="truncate text-sm font-semibold">@{current.username}</p>
-          <p className="text-xs text-muted-foreground">Where do you think they&apos;re from?</p>
         </div>
       </div>
 
-      <div
-        ref={mapRef}
-        onClick={onMapClick}
-        role={revealed ? undefined : "button"}
-        aria-label="World map — click to place your guess"
-        className={
-          "relative min-h-[220px] flex-1 overflow-hidden rounded-xl border border-border bg-muted/40 " +
-          (revealed ? "" : "cursor-crosshair")
-        }
-      >
-        <div
-          className="absolute inset-0 opacity-40"
-          style={{
-            backgroundImage:
-              "linear-gradient(to right, var(--border) 1px, transparent 1px), linear-gradient(to bottom, var(--border) 1px, transparent 1px)",
-            backgroundSize: "8.333% 11.11%",
-          }}
-          aria-hidden="true"
-        />
-
-        {revealed && guess ? (
-          <svg className="absolute inset-0 h-full w-full" aria-hidden="true">
-            <line
-              x1={`${guess.left}%`}
-              y1={`${guess.top}%`}
-              x2={`${actual.left}%`}
-              y2={`${actual.top}%`}
-              stroke="var(--primary)"
-              strokeWidth="2"
-              strokeDasharray="5 4"
+      <div className="min-h-[320px] flex-1">
+        <ClientOnly fallback={<MapSkeleton />}>
+          <Suspense fallback={<MapSkeleton />}>
+            <GuessMap
+              guess={guess}
+              actual={
+                revealed
+                  ? { lat: current.location!.latitude!, lon: current.location!.longitude! }
+                  : null
+              }
+              pfpUrl={current.pfpUrl}
+              locked={revealed}
+              onPick={setGuess}
             />
-          </svg>
-        ) : null}
-
-        {guess ? (
-          <span
-            className="absolute h-3 w-3 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-foreground bg-background"
-            style={{ left: `${guess.left}%`, top: `${guess.top}%` }}
-            aria-hidden="true"
-          />
-        ) : null}
-
-        {revealed ? (
-          <span
-            className="absolute -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-primary bg-card p-0.5"
-            style={{ left: `${actual.left}%`, top: `${actual.top}%` }}
-            title={current.location?.description ?? ""}
-          >
-            <span className="block h-6 w-6 overflow-hidden rounded-full bg-muted">
-              {current.pfpUrl ? (
-                <img src={current.pfpUrl} alt="" className="h-full w-full object-cover" />
-              ) : null}
-            </span>
-          </span>
-        ) : null}
+          </Suspense>
+        </ClientOnly>
       </div>
 
-      {revealed ? (
+      {revealed && last ? (
         <div className="space-y-2 rounded-xl border border-border bg-card/60 p-3">
           <p className="text-sm font-semibold">
-            You were {Math.round(lastKm).toLocaleString()} km away.
+            You were {Math.round(last.km).toLocaleString()} km away.
+          </p>
+          <p className="text-sm font-semibold text-primary">
+            +{last.points.toLocaleString()} points
           </p>
           <p className="text-xs text-muted-foreground">
-            Self-declared location: {current.location?.description ?? "coordinates only"} · +
-            {lastScore.toLocaleString()} points
+            Total score: {total.toLocaleString()} · Self-declared location:{" "}
+            {current.location?.description ?? "coordinates only"}
           </p>
           <Button size="sm" onClick={next}>
             {round + 1 >= deck.length ? "See final score" : "Next round"}
           </Button>
         </div>
       ) : (
-        <p className="text-xs text-muted-foreground">
-          Tap or click anywhere on the map to place your guess.
-        </p>
+        <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-border bg-card/60 p-3">
+          <p className="text-xs text-muted-foreground">
+            {guess
+              ? `Guess placed at ${guess.lat.toFixed(1)}°, ${guess.lon.toFixed(1)}°.`
+              : "Tap or click anywhere on the map to place your guess."}
+          </p>
+          <Button size="sm" disabled={!guess} onClick={submit}>
+            Submit guess
+          </Button>
+        </div>
       )}
 
       <p className="text-xs text-muted-foreground">{DISCLAIMER}</p>
