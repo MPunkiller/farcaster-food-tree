@@ -1,14 +1,63 @@
-# Welcome to your Lovable project
+# Food Quote-Cast Tree
 
-This project was built with [Lovable](https://lovable.dev).
+An interactive visualization of the quote-cast tree growing from a Farcaster cast.
 
-## Build with Lovable
+## Live App
 
-Open your project in the [Lovable editor](https://lovable.dev) and keep building.
+https://fqctapp.vercel.app/
 
-- **Ship faster**: describe what you want to build and Lovable handles the code.
-- **Stay in sync**: connect the project to GitHub and every change made in Lovable is committed straight to your repository.
-- **Full ownership**: this code is yours. Push to your repository and your changes sync back into Lovable, ready for your next prompt.
+## Root Cast
+
+https://farcaster.xyz/czar/0x3db99055
+
+Root hash:
+
+`0x3db990553cbe9e8e8993504624b5c2aaf483aa73`
+
+## What It Does
+
+Food Quote-Cast Tree reconstructs the conversation that grows from a Farcaster cast through quote casts.
+
+Each cast becomes a node containing:
+
+- Farcaster profile picture
+- Username
+- Food image
+- Cast content
+- Relationship to the cast it quoted
+
+The tree can be zoomed, panned, and explored interactively. Selecting a node reveals additional cast and poster information.
+
+## Live Farcaster Data
+
+The application uses the Neynar API to discover quote casts recursively.
+
+The architecture is:
+
+Frontend → Server API → Neynar → Farcaster data
+
+The Neynar API key is kept server-side and is never exposed to the browser.
+
+Required environment variable:
+
+`NEYNAR_API_KEY`
+
+Set this in the Vercel project environment variables.
+
+## Location Guess
+
+The app also includes a five-round Location Guess game using self-declared Farcaster profile location data when available.
+
+Players:
+
+1. See a food image and poster
+2. Guess a location on the world map
+3. Submit their guess
+4. See the poster's self-declared location
+5. See the distance between their guess and the actual location
+6. Receive a distance-based score
+
+Location data is explicitly treated as self-declared profile information. It is not assumed to represent the poster's birthplace, hometown, or the location where the food photo was taken.
 
 ## Development
 
