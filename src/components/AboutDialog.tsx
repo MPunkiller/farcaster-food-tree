@@ -6,6 +6,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { FARCASTER_URL, GITHUB_URL, ROOT_CAST_URL } from "@/lib/constants";
 
 interface Props {
