@@ -94,6 +94,37 @@ export function AboutDialog({ open, onOpenChange }: Props) {
             )}
           </ul>
         </div>
+          </TabsContent>
+
+          <TabsContent value="guess" className="space-y-3 text-sm text-muted-foreground">
+            <h3 className="text-sm font-semibold text-foreground">Location Guess</h3>
+            <p>
+              A small interactive game built from the self-declared locations available in Farcaster
+              profiles.
+            </p>
+            <p className="font-medium text-foreground">How it works</p>
+            <ol className="list-decimal space-y-1 pl-5">
+              <li>A poster with a valid self-declared location is selected.</li>
+              <li>Their food image, profile picture, and username are shown.</li>
+              <li>The game asks: &ldquo;Where do you think they&apos;re from?&rdquo;</li>
+              <li>The actual location is hidden while the player makes their guess.</li>
+              <li>The player taps anywhere on the map to place their guess.</li>
+              <li>The game reveals the poster&apos;s self-declared location.</li>
+              <li>A line is drawn between the player&apos;s guess and the actual location.</li>
+              <li>The game calculates the real distance between the two points.</li>
+              <li>The player receives a score based on how close their guess was.</li>
+              <li>Players can continue through multiple rounds and receive a final score.</li>
+            </ol>
+            <p className="rounded-lg border border-border bg-muted/40 p-3 text-xs">
+              Location is self-declared profile data. It is not necessarily the poster&apos;s
+              birthplace, hometown, or where the food photo was taken.
+            </p>
+            <p className="text-xs">
+              Profiles without usable self-declared location coordinates are never used as game
+              rounds.
+            </p>
+          </TabsContent>
+        </Tabs>
       </DialogContent>
     </Dialog>
   );
