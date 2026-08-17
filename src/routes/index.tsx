@@ -6,6 +6,7 @@ import { CastDetails } from "@/components/CastDetails";
 import { ErrorState } from "@/components/ErrorState";
 import { Header } from "@/components/Header";
 import { LoadingState } from "@/components/LoadingState";
+import { LocationGuessGame } from "@/components/LocationGuessGame";
 import { LocationMap } from "@/components/LocationMap";
 import { QuoteTree } from "@/components/QuoteTree";
 import { Button } from "@/components/ui/button";
