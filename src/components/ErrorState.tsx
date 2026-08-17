@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 
 interface Props {
   message: string;
-  code?: string;
+  code?: string | undefined;
   onRetry: () => void;
 }
 
