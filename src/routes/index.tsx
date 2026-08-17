@@ -40,8 +40,8 @@ function Index() {
   const { data, layout, isPending, isFetching, error, refetch, progressMessage } =
     useQuoteTree(DEFAULT_ROOT_HASH);
 
-  const selected = selectedHash ? layout?.byHash.get(selectedHash) ?? null : null;
-  const parent = selected?.parentHash ? layout?.byHash.get(selected.parentHash) ?? null : null;
+  const selected = selectedHash ? (layout?.byHash.get(selectedHash) ?? null) : null;
+  const parent = selected?.parentHash ? (layout?.byHash.get(selected.parentHash) ?? null) : null;
 
   const statsLine = useMemo(() => {
     if (!data) return "Live Farcaster data";
