@@ -30,7 +30,7 @@ export function CastDetails({ node, parent, onClose, onSelectParent }: Props) {
         // Mobile: bottom sheet
         "fixed inset-x-0 bottom-0 max-h-[72vh] rounded-t-2xl border-t shadow-2xl",
         // Desktop: right drawer
-        "md:inset-y-0 md:left-auto md:right-0 md:h-full md:max-h-none md:w-[360px] md:rounded-none md:border-l md:border-t-0",
+        "md:absolute md:inset-y-0 md:left-auto md:right-0 md:h-full md:max-h-none md:w-[360px] md:rounded-none md:border-l md:border-t-0",
         node ? "translate-y-0 md:translate-x-0" : "translate-y-full md:translate-y-0 md:translate-x-full",
       )}
       hidden={!node}
