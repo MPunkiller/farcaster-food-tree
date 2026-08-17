@@ -1,8 +1,11 @@
+import { useQuery } from "@tanstack/react-query";
 import { ClientOnly } from "@tanstack/react-router";
 import { Suspense, lazy, useCallback, useMemo, useState } from "react";
 
 import { Button } from "@/components/ui/button";
+import { DEFAULT_ROOT_HASH } from "@/lib/constants";
 import type { PositionedNode } from "@/lib/tree-layout";
+import type { GuessResult } from "@/types/cast";
 
 const GuessMap = lazy(() => import("@/components/GuessMap"));
 
@@ -11,23 +14,6 @@ interface Props {
 }
 
 const ROUNDS = 5;
-
-/** Great-circle distance in kilometres (haversine). */
-function haversineKm(aLat: number, aLon: number, bLat: number, bLon: number) {
-  const R = 6371;
-  const toRad = (d: number) => (d * Math.PI) / 180;
-  const dLat = toRad(bLat - aLat);
-  const dLon = toRad(bLon - aLon);
-  const h =
-    Math.sin(dLat / 2) ** 2 +
-    Math.cos(toRad(aLat)) * Math.cos(toRad(bLat)) * Math.sin(dLon / 2) ** 2;
-  return 2 * R * Math.asin(Math.min(1, Math.sqrt(h)));
-}
-
-/** Distance-based score: 1,000 points for a perfect guess, 0 at the antipode. */
-function scoreFor(km: number) {
-  return Math.max(0, Math.round(1000 * (1 - km / 20000)));
-}
 
 function shuffle<T>(items: T[]) {
   const arr = [...items];
@@ -52,45 +38,76 @@ const MapSkeleton = () => (
 );
 
 export function LocationGuessGame({ nodes }: Props) {
-  // Only posters with usable self-declared coordinates can ever be scored.
-  const eligible = useMemo(
-    () =>
-      nodes.filter(
-        (n) =>
-          typeof n.location?.latitude === "number" &&
-          typeof n.location?.longitude === "number" &&
-          Number.isFinite(n.location.latitude) &&
-          Number.isFinite(n.location.longitude),
-      ),
-    [nodes],
+  // The server decides who is eligible; it never sends their coordinates.
+  const { data: roster, isPending: rosterPending } = useQuery({
+    queryKey: ["guess-eligible", DEFAULT_ROOT_HASH],
+    queryFn: async () => {
+      const res = await fetch(`/api/public/guess?root=${encodeURIComponent(DEFAULT_ROOT_HASH)}`);
+      if (!res.ok) throw new Error("roster unavailable");
+      return (await res.json()) as { eligible: string[] };
+    },
+    staleTime: 60_000,
+    retry: 0,
+  });
+
+  const eligible = useMemo(() => {
+    const allowed = new Set(roster?.eligible ?? []);
+    return nodes.filter((n) => allowed.has(n.hash));
+  }, [nodes, roster]);
+
+  const [deckKey, setDeckKey] = useState(0);
+  const deck = useMemo(
+    () => shuffle(eligible).slice(0, ROUNDS),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [eligible, deckKey],
   );
 
-  const [deck, setDeck] = useState(() => shuffle(eligible).slice(0, ROUNDS));
   const [round, setRound] = useState(0);
   const [guess, setGuess] = useState<{ lat: number; lon: number } | null>(null);
-  const [revealed, setRevealed] = useState(false);
+  const [reveal, setReveal] = useState<GuessResult | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
   const [results, setResults] = useState<RoundResult[]>([]);
+  const [total, setTotal] = useState(0);
   const [finished, setFinished] = useState(false);
 
   const current = deck[round];
-  const total = results.reduce((sum, r) => sum + r.points, 0);
-  const last = revealed ? results[results.length - 1] : undefined;
 
-  const submit = useCallback(() => {
-    if (!guess || !current || revealed) return;
-    const km = haversineKm(
-      guess.lat,
-      guess.lon,
-      current.location!.latitude!,
-      current.location!.longitude!,
-    );
-    setResults((r) => [...r, { username: current.username, km, points: scoreFor(km) }]);
-    setRevealed(true);
-  }, [current, guess, revealed]);
+  const submit = useCallback(async () => {
+    if (!guess || !current || reveal || submitting) return;
+    setSubmitting(true);
+    setSubmitError(null);
+    try {
+      const res = await fetch("/api/public/guess", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          root: DEFAULT_ROOT_HASH,
+          hash: current.hash,
+          lat: guess.lat,
+          lon: guess.lon,
+          previousTotal: total,
+        }),
+      });
+      if (!res.ok) throw new Error("scoring failed");
+      const result = (await res.json()) as GuessResult;
+      setReveal(result);
+      setTotal(result.totalScore);
+      setResults((r) => [
+        ...r,
+        { username: result.username, km: result.distanceKm, points: result.points },
+      ]);
+    } catch {
+      setSubmitError("Couldn't score that guess. Try submitting again.");
+    } finally {
+      setSubmitting(false);
+    }
+  }, [current, guess, reveal, submitting, total]);
 
   const next = useCallback(() => {
     setGuess(null);
-    setRevealed(false);
+    setReveal(null);
+    setSubmitError(null);
     if (round + 1 >= deck.length) {
       setFinished(true);
       return;
@@ -99,13 +116,23 @@ export function LocationGuessGame({ nodes }: Props) {
   }, [deck.length, round]);
 
   const restart = useCallback(() => {
-    setDeck(shuffle(eligible).slice(0, ROUNDS));
+    setDeckKey((k) => k + 1);
     setRound(0);
     setGuess(null);
-    setRevealed(false);
+    setReveal(null);
+    setSubmitError(null);
     setResults([]);
+    setTotal(0);
     setFinished(false);
-  }, [eligible]);
+  }, []);
+
+  if (rosterPending) {
+    return (
+      <div className="flex h-full items-center justify-center px-6 text-sm text-muted-foreground">
+        Preparing the round…
+      </div>
+    );
+  }
 
   if (eligible.length < 2) {
     return (
@@ -203,29 +230,27 @@ export function LocationGuessGame({ nodes }: Props) {
             <GuessMap
               guess={guess}
               actual={
-                revealed
-                  ? { lat: current.location!.latitude!, lon: current.location!.longitude! }
-                  : null
+                reveal ? { lat: reveal.location.latitude, lon: reveal.location.longitude } : null
               }
               pfpUrl={current.pfpUrl}
-              locked={revealed}
+              locked={reveal !== null}
               onPick={setGuess}
             />
           </Suspense>
         </ClientOnly>
       </div>
 
-      {revealed && last ? (
+      {reveal ? (
         <div className="space-y-2 rounded-xl border border-border bg-card/60 p-3">
           <p className="text-sm font-semibold">
-            You were {Math.round(last.km).toLocaleString()} km away.
+            You were {Math.round(reveal.distanceKm).toLocaleString()} km away.
           </p>
           <p className="text-sm font-semibold text-primary">
-            +{last.points.toLocaleString()} points
+            +{reveal.points.toLocaleString()} points
           </p>
           <p className="text-xs text-muted-foreground">
             Total score: {total.toLocaleString()} · Self-declared location:{" "}
-            {current.location?.description ?? "coordinates only"}
+            {reveal.location.description ?? "coordinates only"}
           </p>
           <Button size="sm" onClick={next}>
             {round + 1 >= deck.length ? "See final score" : "Next round"}
@@ -234,12 +259,13 @@ export function LocationGuessGame({ nodes }: Props) {
       ) : (
         <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-border bg-card/60 p-3">
           <p className="text-xs text-muted-foreground">
-            {guess
-              ? `Guess placed at ${guess.lat.toFixed(1)}°, ${guess.lon.toFixed(1)}°.`
-              : "Tap or click anywhere on the map to place your guess."}
+            {submitError ??
+              (guess
+                ? `Guess placed at ${guess.lat.toFixed(1)}°, ${guess.lon.toFixed(1)}°.`
+                : "Tap or click anywhere on the map to place your guess.")}
           </p>
-          <Button size="sm" disabled={!guess} onClick={submit}>
-            Submit guess
+          <Button size="sm" disabled={!guess || submitting} onClick={() => void submit()}>
+            {submitting ? "Scoring…" : "Submit guess"}
           </Button>
         </div>
       )}
