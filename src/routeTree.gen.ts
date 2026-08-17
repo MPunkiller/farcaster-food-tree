@@ -10,11 +10,17 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as ApiPublicGuessRouteImport } from './routes/api/public/guess'
 import { Route as ApiPublicTreeRouteImport } from './routes/api/public/tree'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiPublicGuessRoute = ApiPublicGuessRouteImport.update({
+  id: '/api/public/guess',
+  path: '/api/public/guess',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiPublicTreeRoute = ApiPublicTreeRouteImport.update({
@@ -25,27 +31,31 @@ const ApiPublicTreeRoute = ApiPublicTreeRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/api/public/guess': typeof ApiPublicGuessRoute
   '/api/public/tree': typeof ApiPublicTreeRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/api/public/guess': typeof ApiPublicGuessRoute
   '/api/public/tree': typeof ApiPublicTreeRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/api/public/guess': typeof ApiPublicGuessRoute
   '/api/public/tree': typeof ApiPublicTreeRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/api/public/tree'
+  fullPaths: '/' | '/api/public/guess' | '/api/public/tree'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/api/public/tree'
-  id: '__root__' | '/' | '/api/public/tree'
+  to: '/' | '/api/public/guess' | '/api/public/tree'
+  id: '__root__' | '/' | '/api/public/guess' | '/api/public/tree'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  ApiPublicGuessRoute: typeof ApiPublicGuessRoute
   ApiPublicTreeRoute: typeof ApiPublicTreeRoute
 }
 
@@ -56,6 +66,13 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/guess': {
+      id: '/api/public/guess'
+      path: '/api/public/guess'
+      fullPath: '/api/public/guess'
+      preLoaderRoute: typeof ApiPublicGuessRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/public/tree': {
@@ -70,6 +87,7 @@ declare module '@tanstack/react-router' {
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  ApiPublicGuessRoute: ApiPublicGuessRoute,
   ApiPublicTreeRoute: ApiPublicTreeRoute,
 }
 export const routeTree = rootRouteImport
