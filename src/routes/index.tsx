@@ -36,7 +36,7 @@ export const Route = createFileRoute("/")({
 function Index() {
   const [selectedHash, setSelectedHash] = useState<string | null>(null);
   const [aboutOpen, setAboutOpen] = useState(false);
-  const [view, setView] = useState<"tree" | "map">("tree");
+  const [view, setView] = useState<"tree" | "map" | "game">("tree");
   const { data, layout, isPending, isFetching, error, refetch, progressMessage } =
     useQuoteTree(DEFAULT_ROOT_HASH);
 
