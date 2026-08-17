@@ -131,6 +131,7 @@ function toNode(cast: RawCast, depth: number, parentHash: string | null): Server
   const hash = cast.hash;
   if (!hash) return null;
   const username = cast.author?.username?.trim() || `fid:${cast.author?.fid ?? "unknown"}`;
+  const { location, coords } = locationOf(cast);
   return {
     hash,
     fid: cast.author?.fid ?? 0,
