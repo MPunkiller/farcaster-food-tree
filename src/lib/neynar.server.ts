@@ -97,25 +97,41 @@ function pickFoodImage(cast: RawCast): string | null {
   return null;
 }
 
-function locationOf(cast: RawCast): CastNode["location"] {
+/** Server-side node: carries the real coordinates, which are never sent to the browser. */
+export interface ServerCastNode extends CastNode {
+  coords: { lat: number; lon: number } | null;
+}
+
+export interface ServerQuoteTree extends Omit<QuoteTreeResponse, "nodes"> {
+  nodes: ServerCastNode[];
+}
+
+function locationOf(cast: RawCast): {
+  location: CastNode["location"];
+  coords: ServerCastNode["coords"];
+} {
   const loc = cast.author?.profile?.location;
-  if (!loc) return null;
+  if (!loc) return { location: null, coords: null };
   const parts = [loc.address?.city, loc.address?.state, loc.address?.country].filter(
     (p): p is string => Boolean(p),
   );
   const description = parts.length ? parts.join(", ") : null;
-  if (!description && loc.latitude == null) return null;
-  return {
-    description,
-    latitude: typeof loc.latitude === "number" ? loc.latitude : null,
-    longitude: typeof loc.longitude === "number" ? loc.longitude : null,
-  };
+  const coords =
+    typeof loc.latitude === "number" &&
+    typeof loc.longitude === "number" &&
+    Number.isFinite(loc.latitude) &&
+    Number.isFinite(loc.longitude)
+      ? { lat: loc.latitude, lon: loc.longitude }
+      : null;
+  if (!description && !coords) return { location: null, coords: null };
+  return { location: { description, hasCoordinates: coords !== null }, coords };
 }
 
-function toNode(cast: RawCast, depth: number, parentHash: string | null): CastNode | null {
+function toNode(cast: RawCast, depth: number, parentHash: string | null): ServerCastNode | null {
   const hash = cast.hash;
   if (!hash) return null;
   const username = cast.author?.username?.trim() || `fid:${cast.author?.fid ?? "unknown"}`;
+  const { location, coords } = locationOf(cast);
   return {
     hash,
     fid: cast.author?.fid ?? 0,
@@ -128,7 +144,8 @@ function toNode(cast: RawCast, depth: number, parentHash: string | null): CastNo
     castUrl: `https://farcaster.xyz/${username}/${hash.slice(0, 10)}`,
     depth,
     parentHash,
-    location: locationOf(cast),
+    location,
+    coords,
   };
 }
 
@@ -152,7 +169,7 @@ async function fetchQuotes(hash: string, key: string): Promise<RawCast[]> {
  * Recursively (breadth-first) discovers the complete quote-cast tree from a
  * root cast hash. Deduplicates by cast hash and guards against cycles.
  */
-export async function buildQuoteTree(rootHash: string): Promise<QuoteTreeResponse> {
+export async function buildQuoteTree(rootHash: string): Promise<ServerQuoteTree> {
   const key = apiKey();
   const startedAt = Date.now();
 
@@ -162,12 +179,12 @@ export async function buildQuoteTree(rootHash: string): Promise<QuoteTreeRespons
   const rootNode = toNode(root, 0, null);
   if (!rootNode) throw new NeynarError("Root cast could not be read.", "upstream");
 
-  const nodes = new Map<string, CastNode>([[rootNode.hash, rootNode]]);
+  const nodes = new Map<string, ServerCastNode>([[rootNode.hash, rootNode]]);
   const edges: CastEdge[] = [];
   const visited = new Set<string>([rootNode.hash]);
   let truncated = false;
 
-  let frontier: CastNode[] = [rootNode];
+  let frontier: ServerCastNode[] = [rootNode];
   let depth = 0;
 
   while (frontier.length > 0 && depth < LIMITS.maxDepth) {
@@ -175,7 +192,7 @@ export async function buildQuoteTree(rootHash: string): Promise<QuoteTreeRespons
       truncated = true;
       break;
     }
-    const next: CastNode[] = [];
+    const next: ServerCastNode[] = [];
 
     for (let i = 0; i < frontier.length; i += LIMITS.concurrency) {
       if (Date.now() - startedAt > LIMITS.timeBudgetMs) {

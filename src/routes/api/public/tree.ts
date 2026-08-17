@@ -23,7 +23,13 @@ export const Route = createFileRoute("/api/public/tree")({
         const { buildQuoteTree, NeynarError } = await import("@/lib/neynar.server");
 
         try {
-          const tree = await buildQuoteTree(rootHash);
+          const built = await buildQuoteTree(rootHash);
+          // Strip the real coordinates: the client payload must never contain
+          // the answers used by the Location Guess game.
+          const tree = {
+            ...built,
+            nodes: built.nodes.map(({ coords: _coords, ...node }) => node),
+          };
           return Response.json(tree, {
             headers: { ...CORS, "cache-control": "public, max-age=60" },
           });
