@@ -26,6 +26,17 @@ export function AboutDialog({ open, onOpenChange }: Props) {
           </DialogDescription>
         </DialogHeader>
 
+        <Tabs defaultValue="overview" className="w-full min-w-0">
+          <TabsList className="grid w-full grid-cols-2">
+            <TabsTrigger value="overview" className="text-xs sm:text-sm">
+              Overview
+            </TabsTrigger>
+            <TabsTrigger value="guess" className="text-xs sm:text-sm">
+              Location Guess
+            </TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="overview" className="space-y-3">
         <img
           src={guide}
           alt="Illustrated guide to the Food Quote-Cast Tree"
