@@ -1,11 +1,20 @@
+import { useQuery } from "@tanstack/react-query";
 import { useMemo } from "react";
 
+import { DEFAULT_ROOT_HASH } from "@/lib/constants";
 import type { PositionedNode } from "@/lib/tree-layout";
 
 interface Props {
   nodes: PositionedNode[];
   selectedHash: string | null;
   onSelect: (hash: string) => void;
+}
+
+interface Pin {
+  hash: string;
+  latitude: number;
+  longitude: number;
+  description: string | null;
 }
 
 /** Equirectangular projection into a 0-100 percentage box. */
@@ -16,15 +25,44 @@ function project(lat: number, lon: number) {
 /**
  * Bonus: plots casters whose Farcaster profile exposes coordinates.
  * These are SELF-DECLARED profile locations, nothing more.
+ *
+ * Coordinates are fetched from the dedicated locations endpoint — they are not
+ * part of the tree payload, so the Location Guess game can't peek at them.
  */
 export function LocationMap({ nodes, selectedHash, onSelect }: Props) {
-  const pins = useMemo(
-    () =>
-      nodes
-        .filter((n) => n.location?.latitude != null && n.location?.longitude != null)
-        .map((n) => ({ node: n, ...project(n.location!.latitude!, n.location!.longitude!) })),
-    [nodes],
-  );
+  const { data, isPending } = useQuery({
+    queryKey: ["locations", DEFAULT_ROOT_HASH],
+    queryFn: async () => {
+      const res = await fetch(`/api/public/locations?root=${encodeURIComponent(DEFAULT_ROOT_HASH)}`);
+      if (!res.ok) throw new Error("locations unavailable");
+      return (await res.json()) as { pins: Pin[] };
+    },
+    staleTime: 60_000,
+    retry: 0,
+  });
+
+  const pins = useMemo(() => {
+    const byHash = new Map(nodes.map((n) => [n.hash, n]));
+    return (data?.pins ?? []).flatMap((pin) => {
+      const node = byHash.get(pin.hash);
+      if (!node) return [];
+      return [
+        {
+          node,
+          description: pin.description,
+          ...project(pin.latitude, pin.longitude),
+        },
+      ];
+    });
+  }, [data, nodes]);
+
+  if (isPending) {
+    return (
+      <div className="flex h-full items-center justify-center px-6 text-sm text-muted-foreground">
+        Loading self-declared locations…
+      </div>
+    );
+  }
 
   if (pins.length === 0) {
     return (
