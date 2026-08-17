@@ -97,22 +97,37 @@ function pickFoodImage(cast: RawCast): string | null {
   return null;
 }
 
-function locationOf(cast: RawCast): CastNode["location"] {
+/** Server-side node: carries the real coordinates, which are never sent to the browser. */
+export interface ServerCastNode extends CastNode {
+  coords: { lat: number; lon: number } | null;
+}
+
+export interface ServerQuoteTree extends Omit<QuoteTreeResponse, "nodes"> {
+  nodes: ServerCastNode[];
+}
+
+function locationOf(cast: RawCast): {
+  location: CastNode["location"];
+  coords: ServerCastNode["coords"];
+} {
   const loc = cast.author?.profile?.location;
-  if (!loc) return null;
+  if (!loc) return { location: null, coords: null };
   const parts = [loc.address?.city, loc.address?.state, loc.address?.country].filter(
     (p): p is string => Boolean(p),
   );
   const description = parts.length ? parts.join(", ") : null;
-  if (!description && loc.latitude == null) return null;
-  return {
-    description,
-    latitude: typeof loc.latitude === "number" ? loc.latitude : null,
-    longitude: typeof loc.longitude === "number" ? loc.longitude : null,
-  };
+  const coords =
+    typeof loc.latitude === "number" &&
+    typeof loc.longitude === "number" &&
+    Number.isFinite(loc.latitude) &&
+    Number.isFinite(loc.longitude)
+      ? { lat: loc.latitude, lon: loc.longitude }
+      : null;
+  if (!description && !coords) return { location: null, coords: null };
+  return { location: { description, hasCoordinates: coords !== null }, coords };
 }
 
-function toNode(cast: RawCast, depth: number, parentHash: string | null): CastNode | null {
+function toNode(cast: RawCast, depth: number, parentHash: string | null): ServerCastNode | null {
   const hash = cast.hash;
   if (!hash) return null;
   const username = cast.author?.username?.trim() || `fid:${cast.author?.fid ?? "unknown"}`;
